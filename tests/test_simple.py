@@ -1,4 +1,5 @@
 import mygraphql
+import graphql
 
 def test_simple_schema_creation():
     schema = mygraphql.Schema()
@@ -7,4 +8,4 @@ def test_simple_schema_creation():
     def add(a: int, b: int) -> int:
         return a + b
 
-    print(schema.graphql_schema)
+    print(graphql.print_schema(schema.graphql_schema))

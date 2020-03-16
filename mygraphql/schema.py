@@ -1,10 +1,11 @@
-import graphql
-
 from dataclasses import dataclass
 from functools import partial
 
+import graphql
+
+from .field import field_from_fn
+from .mapper import BLANK_VALUE, MAPPER
 from .registry import TypeRegistry
-from .mapper import MAPPER
 
 
 @dataclass
@@ -21,7 +22,6 @@ class CustomType:
         self.description = description
         self.fields = {}
 
-
     def __call__(self, _fn=None, *, name=None):
         if _fn is None:
             return partial(self.__call__, name=name)
@@ -36,23 +36,22 @@ class CustomType:
             raise ValueError(f"Field named {name} already exists on this schema object")
         self.fields[name] = FieldDefinition(name, _fn)
 
-    def _map_field(self, fn):
-        return field_from_fn(fn)  
+    def _map_fields(self, mapper):
+        return {n: field_from_fn(mapper, fn) for (n, fn) in self.fields.items()}
 
-    def _map_fields(self):
-        return {n: field_from_fn(fn) for (n, fn) in self.fields.items()}
-
-    def _map_interfaces(self):
+    def _map_interfaces(self, mapper):
         return []
 
 
 @MAPPER.add_mapper
 def map_custom_type(mapper, obj):
     if isinstance(obj, CustomType):
+        if not obj.fields:
+            return BLANK_VALUE
         return graphql.GraphQLObjectType(
             name=obj.name,
-            fields=partial(mapper, obj._map_fields),
-            interfaces=partial(mapper, obj._map_interfaces),
+            fields=partial(obj._map_fields, mapper),
+            interfaces=partial(obj._map_interfaces, mapper),
             description=obj.description,
         )
 
@@ -70,7 +69,6 @@ class Schema:
     @property
     def graphql_schema(self):
         return graphql.GraphQLSchema(
-            query=self.mapper.map(self.query),
-            mutation=self.mapper.map(self.mutation)
+            query=self.mapper.map(self.query, default_non_null=False),
+            mutation=self.mapper.map(self.mutation, default_non_null=False)
         )
-    
